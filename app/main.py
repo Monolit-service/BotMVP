@@ -578,11 +578,23 @@ async def main() -> None:
     bot = Bot(token=settings.telegram_bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
     dp.include_router(router)
-    logger.info("Bot started")
+
+    try:
+        me = await bot.get_me()
+        logger.info("Bot authenticated as @%s, id=%s", me.username, me.id)
+        webhook_info = await bot.get_webhook_info()
+        if webhook_info.url:
+            logger.warning("Existing Telegram webhook found and will be deleted: %s", webhook_info.url)
+        await bot.delete_webhook(drop_pending_updates=True)
+        logger.info("Polling started. Send /start to @%s", me.username)
+    except Exception:
+        logger.exception("Telegram connection failed. Check TELEGRAM_BOT_TOKEN, internet access and proxy/firewall settings.")
+        await bot.session.close()
+        raise
 
     tasks = [asyncio.create_task(alert_worker(bot)), asyncio.create_task(digest_worker(bot))]
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         for task in tasks:
             task.cancel()
