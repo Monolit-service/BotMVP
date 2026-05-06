@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from html import escape
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -87,7 +88,7 @@ def detect_market(symbol: str, forced: str | None = None) -> tuple[str, str]:
 def parse_alert_args(args: list[str]) -> tuple[str, str, str, str, float]:
     """Returns symbol, market, metric, operator, threshold."""
     if len(args) < 3:
-        raise ValueError("Пример: /alert SBER > 300 или /alert SBER pct < -3")
+        raise ValueError("Пример: /alert SBER &gt; 300 или /alert SBER pct &lt; -3")
     symbol, market = detect_market(args[0])
     metric = "price"
     op_index = 1
@@ -97,11 +98,11 @@ def parse_alert_args(args: list[str]) -> tuple[str, str, str, str, float]:
         op_index = 2
     operator = args[op_index]
     if operator not in {">", ">=", "<", "<="}:
-        raise ValueError("Оператор должен быть одним из: >, >=, <, <=")
+        raise ValueError("Оператор должен быть одним из: &gt;, &gt;=, &lt;, &lt;=")
     try:
         threshold = float(args[op_index + 1].replace(",", "."))
     except (IndexError, ValueError):
-        raise ValueError("Укажите числовой порог. Пример: /alert SBER > 300")
+        raise ValueError("Укажите числовой порог. Пример: /alert SBER &gt; 300")
     return symbol, market, metric, operator, threshold
 
 
@@ -156,8 +157,8 @@ async def cmd_start(message: Message) -> None:
         "• /events SBER — ближайшие события по тикеру\n"
         "• /calendar — календарь событий\n"
         "• /disclosures SBER — раскрытия/сообщения из RSS-источников\n"
-        "• /alert SBER > 300 — ценовой алерт\n"
-        "• /alert SBER pct < -3 — алерт по дневному изменению, %\n"
+        "• /alert SBER &gt; 300 — ценовой алерт\n"
+        "• /alert SBER pct &lt; -3 — алерт по дневному изменению, %\n"
         "• /alerts — список алертов\n"
         "• /digest_on 09:30 — ежедневный дайджест\n\n"
         "<b>Watchlist</b>\n"
@@ -267,7 +268,7 @@ async def cmd_news(message: Message) -> None:
         return
     if market == "MOEX" and not items:
         await message.answer(
-            f"Новости по <b>{symbol}</b> через RSS не найдены. "
+            f"Новости по <b>{escape(symbol)}</b> через RSS не найдены. "
             "Добавьте RSS_FEEDS в .env или подключите коммерческий источник новостей."
         )
         return
@@ -372,7 +373,7 @@ async def cmd_alert(message: Message) -> None:
     alert_id = ctx.db.add_alert(user_id(message), symbol, market, metric, operator, threshold)
     metric_text = "цена" if metric == "price" else "дневное изменение, %"
     await message.answer(
-        f"Создал алерт #{alert_id}: <b>{symbol}</b> ({market}) · {metric_text} {operator} {threshold:g}\n"
+        f"Создал алерт #{alert_id}: <b>{escape(symbol)}</b> ({escape(market)}) · {escape(metric_text)} {escape(operator)} {threshold:g}\n"
         "Алерт однократный: после срабатывания он будет отключён."
     )
 
@@ -404,7 +405,7 @@ async def cmd_digest_on(message: Message) -> None:
         await message.answer(str(exc))
         return
     ctx.db.enable_digest(user_id(message), digest_time)
-    await message.answer(f"Включил ежедневный дайджест на <b>{digest_time}</b> ({ctx.settings.tz}).")
+    await message.answer(f"Включил ежедневный дайджест на <b>{escape(digest_time)}</b> ({escape(ctx.settings.tz)}).")
 
 
 @router.message(Command("digest_off"))
@@ -423,7 +424,7 @@ async def cmd_watch_add(message: Message) -> None:
         return
     symbol, market = detect_market(args[0])
     ctx.db.add_watch(user_id(message), symbol, market)
-    await message.answer(f"Добавил в watchlist: <b>{symbol}</b> ({market})")
+    await message.answer(f"Добавил в watchlist: <b>{escape(symbol)}</b> ({escape(market)})")
 
 
 @router.message(Command("watch_del"))
@@ -449,7 +450,7 @@ async def cmd_watch(message: Message) -> None:
         return
     lines = ["<b>Ваш watchlist</b>", ""]
     for symbol, market in items:
-        lines.append(f"• {symbol} ({market})")
+        lines.append(f"• {escape(symbol)} ({escape(market)})")
     lines.append("\nГрафик: /stock SBER 1m\nСводка: /watch_report\nДайджест: /digest_on 09:30")
     await message.answer("\n".join(lines))
 
@@ -515,8 +516,8 @@ async def alert_worker(bot: Bot) -> None:
                         await bot.send_message(
                             alert.telegram_user_id,
                             f"🔔 <b>Алерт сработал #{alert.id}</b>\n"
-                            f"{alert.symbol} ({alert.market}) · {metric_text}: <b>{value:.2f}</b> {suffix}\n"
-                            f"Условие: {alert.operator} {alert.threshold:g}\n\n"
+                            f"{escape(alert.symbol)} ({escape(alert.market)}) · {escape(metric_text)}: <b>{value:.2f}</b> {escape(suffix)}\n"
+                            f"Условие: {escape(alert.operator)} {alert.threshold:g}\n\n"
                             "<i>Не является инвестиционной рекомендацией.</i>",
                         )
                 except Exception as exc:

@@ -87,7 +87,7 @@ def events_list(title: str, events: list[CorporateEvent]) -> str:
 
 def alerts_list(alerts: list[PriceAlert]) -> str:
     if not alerts:
-        return "Активных алертов нет. Пример: /alert SBER > 300"
+        return "Активных алертов нет. Пример: /alert SBER &gt; 300"
     metric_names = {"price": "цена", "pct": "дневное изменение"}
     lines = ["<b>Активные алерты</b>", ""]
     for alert in alerts:
